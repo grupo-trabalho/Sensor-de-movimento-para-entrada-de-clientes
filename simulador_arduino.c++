@@ -19,13 +19,13 @@ void setup() {
 
   // Informações iniciais no display
   lcd.setCursor(0, 0);
-  lcd.print("Sensor Prox. IR");
+  lcd.print("Sensor de proximidade.");
   lcd.setCursor(0, 1);
   lcd.print("Contador: 0");
 }
 
 void loop() {
-  // Lê as informações do sensor de proximidade IR
+  // Lê as informações do sensor de proximidade
   leitura = digitalRead(pinosensor);
 
   if (leitura != 1) { // Verifica se o objeto foi detectado
