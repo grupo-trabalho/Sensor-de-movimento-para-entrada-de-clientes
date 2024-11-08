@@ -5,7 +5,6 @@ int contador = 0;
 int pinosensor = 4;
 int leitura; // Armazena o valor lido pelo sensor
 
-// Define o display LCD como 16x2 e endereço 0x3B
 Adafruit_LiquidCrystal lcd(0);
 
 void setup() {
