@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contagem de Passagens</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: white;
+            color: black;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            transition: background-color 0.5s;
+            font-size: 1.2em;
+            position: relative;
+        }
+        #contador-container {
+            text-align: center;
+        }
+        #contador {
+            font-size: 2em;
+            margin: 0.5em 0;
+        }
+        #data-hora {
+            font-size: 1em;
+            color: gray;
+        }
+        #alerta-pico {
+            display: none;
+            font-size: 1.5em;
+            color: white;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+        #grafico-container {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            width: 300px;
+            height: 300px; /* Ajuste da altura para 300px */
+            background-color: rgba(255, 255, 255, 0.9);
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            padding: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+            text-align: center;
+        }
+        #saveButton {
+            font-size: 0.8em;
+            padding: 0.3em 0.6em;
+            margin-top: 8px;
+            width: 80%; /* Diminui a largura do botão */
+        }
+        button {
+            font-size: 1.2em;
+            padding: 0.5em 1em;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div id="contador-container">
+        <h1>Contagem de Passagens</h1>
+        <div id="contador">0</div>
+        <div id="data-hora"></div>
+        <div id="alerta-pico">Pico de Movimento Detectado!</div>
+        <button id="connectButton">Conectar ao Arduino</button>
+        <audio id="alerta-som" src="https://actions.google.com/sounds/v1/alarms/digital_watch_alarm_long.ogg" preload="auto"></audio>
+    </div>
+
+    <!-- Container para o gráfico no canto inferior direito -->
+    <div id="grafico-container">
+        <canvas id="graficoContagem"></canvas>
+        <button id="saveButton">Salvar Dados</button>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+
+    <script>
+        const connectButton = document.getElementById('connectButton');
+        const saveButton = document.getElementById('saveButton');
+        const contadorDiv = document.getElementById('contador');
+        const dataHoraDiv = document.getElementById('data-hora');
+        const alertaPicoDiv = document.getElementById('alerta-pico');
+        const alertaSom = document.getElementById('alerta-som');
+
+        let messageBuffer = "";
+        let contador = 0;
+        let graficoData = []; // Array para armazenar os dados do gráfico
+
+        const ctx = document.getElementById('graficoContagem').getContext('2d');
+        const graficoContagem = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Contagem de Passagens',
+                    data: [],
+                    borderColor: 'blue',
+                    backgroundColor: 'rgba(0, 0, 255, 0.1)',
+                    fill: true,
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: {
+                        type: 'time',
+                        time: {
+                            unit: 'second'
+                        },
+                        title: {
+                            display: true,
+                            text: 'Tempo'
+                        }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: 'Contagem'
+                        }
+                    }
+                }
+            }
+        });
+
+        function atualizarGrafico() {
+            const agora = new Date();
+            graficoContagem.data.labels.push(agora);
+            graficoContagem.data.datasets[0].data.push(contador);
+            graficoContagem.update();
+
+            // Armazena os dados no array para salvar depois
+            graficoData.push({ time: agora, count: contador });
+        }
+
+        async function connectToSerial() {
+            try {
+                const port = await navigator.serial.requestPort();
+                await port.open({ baudRate: 9600 });
+
+                const decoder = new TextDecoderStream();
+                const inputDone = port.readable.pipeTo(decoder.writable);
+                const inputStream = decoder.readable.getReader();
+
+                connectButton.disabled = true;
+
+                while (true) {
+                    const { value, done } = await inputStream.read();
+                    if (done) {
+                        inputStream.releaseLock();
+                        break;
+                    }
+                    if (value) {
+                        messageBuffer += value;
+
+                        let lines = messageBuffer.split('\n');
+                        messageBuffer = lines.pop();
+
+                        lines.forEach(line => {
+                            line = line.trim();
+
+                            if (line.startsWith("Contagem de passagens:")) {
+                                contador = parseInt(line.split(":")[1].trim());
+                                contadorDiv.textContent = contador;
+                                dataHoraDiv.textContent = Data e Hora: ${new Date().toLocaleString()};
+                                atualizarGrafico();
+                            }
+
+                            if (line === "PICO DE MOVIMENTO DETECTADO!") {
+                                alertaPicoDiv.style.display = 'block';
+                                document.body.style.backgroundColor = 'red';
+                                alertaSom.play();
+
+                                setTimeout(() => {
+                                    alertaSom.pause();
+                                    alertaSom.currentTime = 0;
+                                }, 10000);
+
+                                setTimeout(() => {
+                                    alertaPicoDiv.style.display = 'none';
+                                    document.body.style.backgroundColor = 'white';
+                                }, 10000);
+                            }
+                        });
+                    }
+                }
+            } catch (error) {
+                console.error('[ERRO] Falha na conexão:', error);
+            }
+        }
+
+        // Função para salvar os dados do gráfico em um arquivo JSON
+        function salvarDadosEmJSON() {
+            const jsonData = JSON.stringify(graficoData, null, 2);
+            const blob = new Blob([jsonData], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = dados_grafico_${new Date().toLocaleDateString("pt-BR")}.json;
+            a.click();
+            URL.revokeObjectURL(url); // Libera o URL do objeto
+        }
+
+        connectButton.addEventListener('click', connectToSerial);
+        saveButton.addEventListener('click', salvarDadosEmJSON);
+    </script>
+</body>
+</html>
